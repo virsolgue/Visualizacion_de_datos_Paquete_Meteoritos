@@ -1,0 +1,250 @@
+---
+title: "Informe práctico 2"
+author: "Guerrero, Virginia S. - Martínez, Leonel S."
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(rnaturalearth)
+library(metR)
+library(scales) #Formateo de números
+library(knitr) #Formateo de tablas
+library(kableExtra) #Formateo de tablas
+knitr::opts_chunk$set(echo = TRUE)
+
+meteoritos <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-11/meteorites.csv")
+```
+
+La base de datos `meteoritos` contiene información de impactos de meteoritos y su fuente es la NASA. Incluye información sobre más de 45.000 meteoritos, incluyendo su nombre, ubicación, masa y año de impacto. 
+
+### **Parte 1**
+
+**Pregunta:** ¿Cuál es la distribución geográfica de los meteoritos y donde cayeron los más pesados? 
+
+**Introducción:**
+La base de datos utilizada en el presente informe, cuya fuente es la NASA, cuenta con información sobre más de 45.000 meteoritos, incluyendo su nombre, ubicación, masa y año de impacto.
+
+La descripción de cada variable correspondiente a cada registro se detalla a continuación:
+
+| variable    | clase     | descripción                                                                                              |
+| ----------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| name        | character | Nombre del meteorito                                                                                     |
+| id          | double    | ID numerico del meteorito                                                                                |
+| name_type   | character | Tipo de nombre, valid (válido) o relict (un meteorito que no puede ser asignado fácilmente a una clase)  |
+| class       | character | Clase del meteorito, más detalles en [Wikipedia](https://en.wikipedia.org/wiki/Meteorite_classification) |
+| mass        | double    | Masa en gramos                                                                                           |
+| fall        | character | Fell (alguien vio caer el meteorito) o Found (alguien lo encontró)                                       |
+| year        | integer   | Año                                                                                                      |
+| lat         | double    | Latitud                                                                                                  |
+| long        | double    | Longitud                                                                                                 |
+| geolocation | character | Geolocalización                                                                                          |
+
+Cabe destacar que se aplicaron filtros convenientes a cada gráfico con la finalidad de eliminar del análisis aquellos registros con algún valor faltante (NA) o cuyas coordenadas de latitud y longitud fueran simultáneamente iguales a cero.
+
+Esta primera sección explorará la distribución geográfica de los meteoritos (definida por la latitud y la longitud) en la que cayeron, identificando en particular aquellos de mayor peso. Para ello, se creó un indicador que permite diferenciarlos según el valor de la variable `mass`.
+
+**Enfoque:**
+Para responder a la incógnita presentada en la introducción, se confeccionó, en primer lugar, un mapa que permite relacionar las coordenadas que determinan la ubicación del avistamiendo o hallazgo de cada meteorito con su tamaño. En dicho mapa se utilizan, además, dos recursos visuales: por un lado, el tamaño de los puntos asociado a la magnitud de cada uno de ellos, y por otro, para separar a los más pesados del conjunto de datos, se realiza una distinción mediante dos colores con transparencia variable.
+
+A pesar de que en el mapa es posible identificar rápidamente el área de distribución de los meteoritos, no es posible distinguir cuántos de ellos comparten su ubicación. Por tal motivo, en segundo lugar, se generó un gráfico de barras apiladas que permite representar la cantidad de meteoritos registrados como vistos o encontrados en exactamente una misma ubicación geográfica, expandiendo la información proporcionada por el mapa al introducir, a su vez, las clases en las que es posible agrupar los tipos de meteoritos, mostrando las 8 ubicaciones geográficas con mayor cantidad de eventos. 
+
+**Analisis:**
+```{r, include=FALSE}
+# Carga del mapa para los países seleccionados
+mapa <- rnaturalearth::ne_countries(returnclass = "sf")
+
+# Variable con el mapa base para el ploteo:
+mi_mapa <- geom_sf(
+	data = mapa,
+	inherit.aes = FALSE, # Evita que herede las estéticas globales
+	fill = NA,
+	color = "black",
+	size = 0.2) 
+
+# Variable con meteoritos más pesados
+max_mass <- meteoritos %>%
+    filter(mass > 50000, na.rm = TRUE) %>%
+	arrange(desc(mass))
+
+# Tema general que se utilizará
+own_theme <- function() {
+	list(
+		theme_minimal(),
+		theme(
+			legend.position = "bottom",
+			plot.title = element_text(face = "bold", size = 15),
+			plot.caption = element_text(face = "italic"),
+			panel.grid = element_line(linetype = 3)
+		)
+	)
+}
+```
+
+```{r, include=FALSE}
+# Jerarquias superiores a la clase específica
+Achondrites <- c("Enst achon-ung", "Achondrite-ung")
+Carbonaceous_Chondrites <- c("C", "C1/2-ung", "C2", "C2-ung", "C3-ung", "C4", "C4/5", "C4-ung", "C5/6-ung", "C6", "CBa", "CBb", "CH/CBb", "CH3", "Chondrite-fusion crust", "Chondrite-ung", "CI1", "CK3", "CK3-an", "CK4", "CK4/5", "CK4-an", "CK5", "CK5/6", "CK6", "CM1", "CM1/2", "CM2", "CM-an", "CO3", "CO3.0", "CO3.2", "CO3.3", "CO3.4", "CO3.5", "CO3.6", "CO3.7", "CO3.8", "CR", "CR1", "CR2", "CR2-an", "CR-an", "CV2", "CV3", "CV3-an")
+Differentiated_Achondrites <- c("Diogenite", "Diogenite-an", "Diogenite-olivine", "Diogenite-pm", "Eucrite", "Eucrite-an", "Eucrite-br", "Eucrite-cm", "Eucrite-Mg rich", "Eucrite-mmict", "Eucrite-pmict", "Eucrite-unbr", "Ureilite", "Ureilite-an", "Ureilite-pmict", "Howardite", "Angrite", "Aubrite", "Aubrite-an")
+Enstatite_Chondrites <- c("EH", "EH3", "EH3/4-an", "EH4", "EH4/5", "EH5", "EH6", "EH6-an", "EH7", "EH7-an", "EH-imp melt", "EL3", "EL4", "EL4/5", "EL5", "EL6", "EL6/7", "EL7", "K", "K3", "L", "L(?)3", "L(LL)3", "L(LL)3.05", "L(LL)3.5-3.7", "L(LL)5", "L(LL)6", "L/LL", "L/LL(?)3", "L/LL~4", "L/LL~5", "L/LL~6", "L/LL3", "L/LL3.10", "L/LL3.2", "L/LL3.4", "L/LL3.6/3.7", "L/LL3-5", "L/LL3-6", "L/LL4", "L/LL4/5", "L/LL4-6", "L/LL5", "L/LL5/6", "L/LL5-6", "L/LL6", "L/LL6-an", "L~3", "L~4", "L~5", "L~6", "L3", "L3.0", "L3.0-3.7", "L3.0-3.9", "L3.05", "L3.1", "L3.10", "L3.2", "L3.2-3.5", "L3.2-3.6", "L3.3", "L3.3-3.5", "L3.3-3.6", "L3.3-3.7", "L3.4", "L3.4-3.7", "L3.5", "L3.5-3.7", "L3.5-3.8", "L3.5-3.9", "L3.5-5", "L3.6", "L3.6-4", "L3.7", "L3.7/3.8", "L3.7-3.9", "L3.7-4", "L3.7-6", "L3.8", "L3.8-6", "L3.8-an", "L3.9", "L3.9/4", "L3.9-5", "L3.9-6", "L3/4", "L3-4", "L3-5", "L3-6", "L4", "L4/5", "L4-5", "L4-6", "L4-an", "L5", "L5/6", "L5-6", "L5-7", "L6", "L6/7", "L6-melt breccia", "L7", "L-imp melt", "LL", "LL(L)3", "LL~3", "LL~5", "LL~6", "LL3", "LL3.0", "LL3.00", "LL3.1", "LL3.1-3.5", "LL3.15", "LL3.2", "LL3.3", "LL3.4", "LL3.5", "LL3.6", "LL3.7", "LL3.7-6", "LL3.8", "LL3.8-6", "LL3.9", "LL3.9/4", "LL3/4", "LL3-5", "LL3-6", "LL4", "LL4/5", "LL4-5", "LL4-6", "LL5", "LL5/6", "LL5-6", "LL5-7", "LL6", "LL6(?)", "LL7", "LL7(?)", "L-melt breccia", "L-melt rock", "L-metal", "R", "R3", "R3.5-6", "R3.6", "R3.8", "R3.8-5", "R3.8-6", "R3.9", "R3-4", "R3-6", "R4", "R5", "E", "E3", "E3-an", "E4", "E5", "E5-an", "E6", "E-an")
+Iron_and_Stony_Irons <- c("Iron", "Iron, IAB complex", "Iron, IAB?", "Iron, IAB-an", "Iron, IAB-MG", "Iron, IAB-sHH", "Iron, IAB-sHL", "Iron, IAB-sLH", "Iron, IAB-sLL", "Iron, IAB-sLM", "Iron, IAB-ung", "Iron, IC", "Iron, IC-an", "Iron, IIAB", "Iron, IIAB-an", "Iron, IIC", "Iron, IID", "Iron, IID-an", "Iron, IIE", "Iron, IIE-an", "Iron, IIF", "Iron, IIG", "Iron, IIIAB", "Iron, IIIAB?", "Iron, IIIAB-an", "Iron, IIIE", "Iron, IIIE-an", "Iron, IIIF", "Iron, IVA", "Iron, IVA-an", "Iron, IVB", "Iron, ungrouped", "Iron?", "Mesosiderite", "Mesosiderite?", "Mesosiderite-A", "Mesosiderite-A1", "Mesosiderite-A2", "Mesosiderite-A3", "Mesosiderite-A3/4", "Mesosiderite-A4", "Mesosiderite-an", "Mesosiderite-B", "Mesosiderite-B1", "Mesosiderite-B2", "Mesosiderite-B4", "Mesosiderite-C", "Mesosiderite-C2", "Pallasite", "Pallasite, PES", "Pallasite, PMG", "Pallasite, PMG-an", "Pallasite, ungrouped", "Pallasite?", "Stone-uncl", "Stone-ung", "OC", "Relict iron")
+Ordinary_Chondrites <- c("H", "H(?)4", "H(5?)", "H(L)3", "H(L)3-an", "H/L~4", "H/L3", "H/L3.5", "H/L3.6", "H/L3.9", "H/L4", "H/L4-5", "H/L5", "H/L6", "H?", "H~4", "H~4/5", "H~5", "H~6", "H3", "H3.0", "H3.0-3.4", "H3.1", "H3.10", "H3.2", "H3.2-3.7", "H3.2-6", "H3.2-an", "H3.3", "H3.4", "H3.4/3.5", "H3.4-5", "H3.5", "H3.5-4", "H3.6", "H3.6-6", "H3.7", "H3.7/3.8", "H3.7-5", "H3.7-6", "H3.8", "H3.8/3.9", "H3.8/4", "H3.8-4", "H3.8-5", "H3.8-6", "H3.8-an", "H3.9", "H3.9/4", "H3.9-5", "H3.9-6", "H3/4", "H3-4", "H3-5", "H3-6", "H3-an", "H4", "H4(?)", "H4/5", "H4/6", "H4-5", "H4-6", "H4-an", "H5", "H5/6", "H5-6", "H5-7", "H5-an", "H5-melt breccia", "H6", "H6-melt breccia", "H7", "H-an", "H-imp melt", "H-melt rock", "H-metal", "Relict H", "Relict OC")
+Planetary <- c("Lunar", "Lunar (anorth)", "Lunar (bas. breccia)", "Lunar (bas/anor)", "Lunar (basalt)", "Lunar (feldsp. breccia)", "Lunar (gabbro)", "Lunar (norite)", "Martian (chassignite)", "Martian (nakhlite)", "Martian (OPX)", "Martian (shergottite)")
+Primitive_Achondrites <- c("Winonaite", "Lodranite", "Lodranite-an", "Acapulcoite", "Acapulcoite/Lodranite", "Brachinite")
+Unknown <- c("Unknown", "Fusion crust")
+```
+
+```{r mapa-distribucion-geografica, fig.alt="Los cinco meteoritos más pesados que se registraron cayeron, cada uno, en un continente distinto, con una separación bastante similar entre ellos teniendo el más grande una masa de cerca de 60 toneladas. La mayor cantidad de meteoritos registrados se han encontrado en la región central de América del Norte, norte y sur de África, centro de Europa y sur de Australia.", echo=FALSE}
+# Visualización de la distribución de meteoritos en el mundo
+meteoritos %>%
+	na.omit() %>%
+	filter(lat + long != 0) %>%
+  mutate(mass = mass/1000) %>% #Transformación a kilogramos
+	mutate(sizeType = ifelse(mass > 1000, '+1.000kg', '<1.000kg')) %>%
+	ggplot(aes(long, lat)) +
+	geom_point(aes(color = sizeType, size = mass, alpha = mass)) +
+	mi_mapa +
+	geom_label(data = max_mass[1:5,], aes(label = name),
+                size = 3,
+                hjust = 1.3,
+                vjust = 0.2,) +
+  labs(
+    title = "Distribución de la caída de meteoritos en el mundo",
+    caption = "Fuente: NASA",
+    x = "Latitud",
+    y = "Longitud",
+    size = "Masa (kg)",
+    color = "Masa (clasificación)") +
+  own_theme() +
+  scale_size_continuous(labels = comma) + #Formatea la representación numérica en color
+  guides(
+    alpha = "none",
+    color = guide_legend(nrow = 2, byrow = TRUE, title.position = "top", title.hjust = 0.5),
+    size = guide_legend(ncol = 3, byrow = FALSE, title.position = "top", title.hjust = 0.5))
+```
+
+```{r, include=FALSE}
+# Guardo la tabla con todos los mutates activos
+mutateMeteoritos <- meteoritos %>%
+	na.omit() %>%
+	filter(lat + long != 0) %>%
+	mutate(century = round(year/100) + 1) %>%
+	filter(century > 10) %>%
+	# filter(year > 2000) %>%
+	mutate(year = ifelse(year == 2101, 2010, year)) %>%
+	# filter(mass > 50000) %>%
+	mutate(upperClass = case_when(
+		class %in% Achondrites ~ "Achondrites",
+		class %in% Carbonaceous_Chondrites ~ "Carbonaceous Chondrites",
+		class %in% Differentiated_Achondrites ~ "Differentiated Achondrites",
+		class %in% Enstatite_Chondrites ~ "Enstatite Chondrites",
+		class %in% Iron_and_Stony_Irons ~ "Iron and Stony Irons",
+		class %in% Ordinary_Chondrites ~ "Ordinary Chondrites",
+		class %in% Planetary ~ "Planetary",
+		class %in% Primitive_Achondrites ~ "Primitive Achondrites",
+		class %in% Unknown ~ "Unknown"))
+```
+
+```{r cantidad-por-ubicacion, fit.alt="Existen cerca de 10 ubicaciones en el planeta en el que se encontraron, en cada una de ellas, más de 200 meteoritos de acuerdo con la base de datos utilizada. El punto que presenta la mayor cantidad posee más de 4000 registros asociados. Se identifican dentro de estos casos únicamente las clases de meteoritos Enstatite Chondrites y Ordinary Chondrites.", echo=FALSE}
+# Ubicaciones con mayor cantidad de meteoritos registrados
+mutateMeteoritos %>%
+	group_by(geolocation, upperClass) %>%
+	summarise(
+		quantity = n()) %>%
+		filter(quantity > 220) %>%
+    #ggplot(aes(quantity, geolocation)) +
+    ggplot(aes(quantity, fct_reorder(geolocation, quantity))) +
+		geom_col(aes(fill = upperClass)) +
+  own_theme() +
+  labs(
+    title = "Cantidad de meteoritos registrados por ubicación",
+    caption = "Fuente: NASA",
+    x = "Cantidad",
+    y = "Coordenadas geográficas",
+    fill =  "Clase"
+  ) +
+  guides(
+    fill = guide_legend(nrow = 1, title.position = "top", title.hjust = 0.5)
+  )
+```
+
+**Discusión:**
+Es claro notar que no existe una relación visible entre la distribución geográfica de los meteoritos y su masa. Esto puede relacionarse con el hecho de que la caída de ellos no responde a un patrón que pueda relacionarse con aspectos geográficos: se trata de eventos accidentales y aleatorios.
+Por otra parte y en línea con lo antes mencionado, una posible interpretación para el registro de múltiples caídas en un mismo punto geográfico pueda ser la de considerar que los mismos correspondan a fragmentos de un meteorito mayor que tuvieron origen al colisionar éste con la Tierra. 
+Se tuvo en cuenta además la posibilidad de que en dichos puntos existan observatorios y que por ello se hubiesen regisrado múltiples caídas, pero al investigar específicamente algunas de las coordenadas involucradas se descartó la idea por no encontrar pruebas respaldatorias.
+
+
+### **Parte 2**
+
+**Pregunta:** ¿Cuál es la frecuencia de avistamiento y caída de meteoritos según su clase y su masa? ¿Existe alguna relación entre ellos? 
+
+**Introducción:**
+En esta segunda sección intentaremos determinar cuáles son las clases de meteoritos cuya caída/avistamiento sea la de mayor frecuencia y qué masa presentan. Para ello, utilizaremos la masa (`mass`) además de una nueva columna calculada que agrupa los registros a partir de la subclase que representa la variable `class`. 
+
+**Enfoque:**
+Para responder a la pregunta de esta segunda parte, se eligió representar los datos mediante la aplicación de un histrograma y de una tabla. Para el caso del histograma, se representó la distribución de la masa en función de la cantidad total de meteoritos registrados en el dataset, aperturando mediante una segmentación de color cada una de las clases obtenidas. Debido a la gran variación de la masa entre el más liviano (de menos de 1gr) y el más pesado (del orden de las toneladas), se adaptó la configuración del gráfico para que se considere la representación logarítmica de la masa. Adicionalamente, se hizo una separación a partir del inidicador `fall` que toma 2 valores posibles: `fell` para el caso de los meteoritos que se vieron caer y `found` para el caso de los que fueron encontrados. 
+
+Con la intención de agregar información un poco más en detalle y expresar las pequeñas diferencias de peso antes mencionadas que existen entre algunas clases, se optó por la utilización de una tabla que, además de la cantidad y la masa total de meteoritos registrados para cada una de ellas, se agrega el peso medio para permitirle al lector una rápida comprensión de la diferencia que existe entre los meteoritos de masa más pequeña y los de masa más grande.
+
+
+**Analisis:**
+```{r relacion-masa-clase-cantidad, fig.alt="El valor medio de la masa dentro de los meteoritos encontrados es menor que el de los vistos. A su vez, la cantidad total de meteoritos encontrados es mucho mayor que el de los vistos.", echo=FALSE}
+# Histograma
+
+# Nuevas etiquetas para facetas
+fall.labs <- c("Visto", "Encontrado")
+names(fall.labs) <- c("Fell", "Found")
+
+mutateMeteoritos %>%
+  filter(mass > 1) %>%
+	ggplot(aes(mass)) + # Masa normal
+	geom_histogram(aes(fill = upperClass), color = "black") +
+  scale_y_continuous(trans = "log10", labels = comma) +
+  scale_x_continuous(trans = "log10", labels = comma) +
+	facet_wrap(~fall, labeller = labeller(fall = fall.labs)) +
+  own_theme() +
+  labs(
+    title = "Relación entre masa y cantidad de meteoritos registrados",
+    subtitle = "Separación por paneles de acuerdo a vistos o encontrados",
+    caption = "Fuente: NASA",
+    x = "Masa (g)",
+    y = "Cantidad",
+    fill = "Clase"
+  ) +
+  theme(legend.position = "right") +
+  guides(
+    fill = guide_legend(ncol=1, title.position = "top")
+  )
+```
+
+```{r detalle-clase-cantidad-masa, fit.alt="", echo=FALSE}
+resumen <- mutateMeteoritos %>%
+	group_by(upperClass) %>%
+	summarise(
+		quantity = n(),
+		totalMass = sum(mass)/1000, #En kilos
+		meanMass = round(totalMass / quantity, 2)) %>%
+  arrange(desc(totalMass))
+
+# Formateo de tabla
+table <- kable(
+    resumen,
+    col.names = c(  #Títulos que queremos en las columnas
+        'Clase',
+        'Cantidad',
+        'Masa total (kg)',
+        'Masa media (kg)'
+        ),
+    digits = 2,
+    format.args = list(decimal.mark = ',', big.mark = '.', scientific = FALSE))
+
+table %>%
+  #column_spec(column = 3) %>%
+  kable_material()
+
+```
+
+**Discusión:**
+En cuanto al registro de los meteoritos, ya sea por avistamiento o hallazgo, se observa que ciertas clases poseen un grado menor de aparición ("Achondrites", "Planetary" y "Primitive Achondrites"). Si analizamos la masa podríamos inferir que el avistamiento de un meteorito requiere que su valor sea relevante como para identificarlo en el cielo. Para el caso de los encontrados, como su reconocimiento se basa en características físicas que luego se confirman mediante el análisis químico que permite determinar sus componentes, la masa deja de tener un papel concluyente y es por eso que hay un mayor registro de meteoritos de pesos muy bajos. 
+
+Por otro lado, el cuadro permite identificar que los meteoritos de clase "Iron and Stony Irons" presentan una masa promedio muchísimo mayor que las clases restantes. Esto se relaciona a la composición de los mismos, la cual principalmente contiene hierro, un material de una alta densidad.
